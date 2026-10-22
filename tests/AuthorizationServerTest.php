@@ -288,6 +288,27 @@ final class AuthorizationServerTest extends TestCase {
 		$this->assertSame( 'https://api.example.com', $back['iss'] );
 	}
 
+	/**
+	 * A redirectable error is only as good as the query it is paired with:
+	 * another request's redirect_uri must not be trusted on its say-so.
+	 */
+	public function test_a_redirectable_error_is_not_sent_to_an_unchecked_redirect(): void {
+		$error = $this->server->authorize( $this->query( array( 'response_type' => 'token' ) ) );
+
+		$this->assertInstanceOf( OAuthError::class, $error );
+		$this->assertTrue( $error->redirect );
+
+		foreach ( array(
+			array( 'redirect_uri' => 'https://evil.example/callback' ),
+			array( 'client_id' => 'mcpc_nobody' ),
+			array( 'redirect_uri' => '' ),
+		) as $changes ) {
+			$this->assertNull( $this->server->error_url( $this->query( $changes ), $error ), (string) json_encode( $changes ) );
+		}
+
+		$this->assertNull( $this->server->error_url( array( 'client_id' => 'mcpc_test', 'redirect_uri' => array( self::REDIRECT ) ), $error ) );
+	}
+
 	public function test_another_resource_is_an_invalid_target(): void {
 		$error = $this->server->authorize( $this->query( array( 'resource' => 'https://other.example/mcp' ) ) );
 
@@ -463,6 +484,29 @@ final class AuthorizationServerTest extends TestCase {
 		$readonly = $this->exchange( $this->code( array( 'shop:read' ) ) )->body;
 
 		$this->assertSame( 'invalid_scope', $this->refresh( $readonly['refresh_token'], array( 'scope' => 'shop:write' ) )->body['error'] );
+	}
+
+	/**
+	 * A scope map changed after approval — `shop:read` now implying more —
+	 * cannot widen what a refresh hands out beyond the grant.
+	 */
+	public function test_a_narrowing_refresh_stays_inside_the_grant_when_scopes_change(): void {
+		$full = $this->exchange( $this->code( array( 'shop:read' ) ) )->body;
+
+		$changed = new Settings(
+			issuer: 'https://api.example.com',
+			resource: self::RESOURCE,
+			authorization_endpoint: 'https://app.example.com/oauth/authorize',
+			token_endpoint: 'https://api.example.com/oauth/token',
+			revocation_endpoint: 'https://api.example.com/oauth/revoke',
+			scopes: array( 'shop:read' => array( 'shop:admin' ), 'shop:write' => array( 'shop:read' ), 'shop:admin' => array() ),
+		);
+		$server  = new AuthorizationServer( $changed, $this->store, null, fn (): int => $this->now );
+		$reply   = $server->token( array( 'grant_type' => 'refresh_token', 'refresh_token' => $full['refresh_token'], 'client_id' => 'mcpc_test', 'scope' => 'shop:read' ) );
+
+		$this->assertSame( 200, $reply->status, $reply->json() );
+		$this->assertSame( 'shop:read', $reply->body['scope'] );
+		$this->assertSame( array( 'shop:read' ), $server->authenticate( $reply->body['access_token'] )['scopes'] ?? null );
 	}
 
 	public function test_a_refresh_for_another_resource_is_refused(): void {

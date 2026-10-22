@@ -53,18 +53,22 @@ use SugarCommerce\OAuth\Pkce;
 final readonly class AuthorizationServer {
 
 	/**
-	 * Clock.
+	 * Clock: returns the current Unix time.
+	 *
+	 * @var \Closure(): int
 	 */
 	private \Closure $clock;
 
 	/**
+	 * Set up a server over the application's store.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param Settings              $settings  Where and what.
 	 * @param Store                 $store     The application's tables.
 	 * @param ClientDocuments|null  $documents Fetches metadata documents; null
 	 *                                         accepts registered clients only.
-	 * @param \Closure|null         $clock     fn(): int, for tests.
+	 * @param (\Closure(): int)|null $clock   fn(): int, for tests.
 	 */
 	public function __construct(
 		public Settings $settings,
@@ -180,7 +184,7 @@ final readonly class AuthorizationServer {
 	 * @return string
 	 */
 	public function deny( AuthorizationRequest $request ): string {
-		return $this->error_url( $request, new OAuthError( 'access_denied', 'The person declined.', redirect: true ) );
+		return $this->redirect_error( $request->redirect_uri, $request->state, new OAuthError( 'access_denied', 'The person declined.', redirect: true ) );
 	}
 
 	/**
@@ -188,6 +192,11 @@ final readonly class AuthorizationServer {
 	 *
 	 * Only for an error with `redirect` true, whose request got as far as a
 	 * known client and redirect URI.
+	 *
+	 * Given the raw query, the client and redirect URI in it are checked
+	 * again rather than trusted because the error says it may redirect: an
+	 * error from one request paired with another request's query would
+	 * otherwise make this an open redirector.
 	 *
 	 * @since 1.0.0
 	 *
@@ -203,9 +212,32 @@ final readonly class AuthorizationServer {
 			return null;
 		}
 
-		$redirect = $request instanceof AuthorizationRequest ? $request->redirect_uri : (string) ( $request['redirect_uri'] ?? '' );
-		$state    = $request instanceof AuthorizationRequest ? $request->state : ( is_string( $request['state'] ?? null ) ? $request['state'] : '' );
+		if ( $request instanceof AuthorizationRequest ) {
+			return $this->redirect_error( $request->redirect_uri, $request->state, $error );
+		}
 
+		$client_id = is_string( $request['client_id'] ?? null ) ? $request['client_id'] : '';
+		$redirect  = is_string( $request['redirect_uri'] ?? null ) ? $request['redirect_uri'] : '';
+		$state     = is_string( $request['state'] ?? null ) ? $request['state'] : '';
+		$client    = $this->client( $client_id );
+
+		if ( $client instanceof OAuthError || '' === $redirect || ! $client->allows_redirect( $redirect ) ) {
+			return null;
+		}
+
+		return $this->redirect_error( $redirect, $state, $error );
+	}
+
+	/**
+	 * An error sent back to a redirect URI already known to be the client's.
+	 *
+	 * @param string     $redirect The checked redirect URI.
+	 * @param string     $state    The request's state; '' when absent.
+	 * @param OAuthError $error    The error.
+	 *
+	 * @return string
+	 */
+	private function redirect_error( string $redirect, string $state, OAuthError $error ): string {
 		return Uri::with_query( $redirect, array(
 			'error'             => $error->error,
 			'error_description' => $error->description,
@@ -348,11 +380,13 @@ final readonly class AuthorizationServer {
 		if ( '' !== trim( $form['scope'] ?? '' ) ) {
 			$asked = preg_split( '/ +/', trim( $form['scope'] ), -1, PREG_SPLIT_NO_EMPTY );
 
-			if ( array() !== array_diff( (array) $asked, $grant->scopes ) ) {
+			if ( false === $asked || array() !== array_diff( $asked, $grant->scopes ) ) {
 				return new OAuthError( 'invalid_scope', 'A refresh can narrow the scopes but not widen them.' )->reply();
 			}
 
-			$scopes = $this->settings->expand( (array) $asked );
+			// What the names imply today stays inside what was granted, so
+			// a scope map changed since approval cannot widen a grant.
+			$scopes = array_values( array_intersect( $this->settings->expand( $asked ), $grant->scopes ) );
 		}
 
 		// Two requests racing with the same token: one wins, and the

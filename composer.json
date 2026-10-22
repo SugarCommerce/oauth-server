@@ -1,6 +1,6 @@
 {
     "name": "sugarcommerce/oauth-server",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "The authorization-server half of OAuth 2.1 for a remote MCP server: protected resource and authorization server metadata, Client ID Metadata Documents and dynamic registration, authorization code with S256 PKCE, resource-bound opaque tokens, rotating refresh tokens with reuse detection, and revocation. Storage is yours.",
     "type": "library",
     "license": "GPL-2.0-or-later",

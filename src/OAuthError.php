@@ -30,6 +30,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class OAuthError {
 
 	/**
+	 * Name an error.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param string $error       Registered error code.

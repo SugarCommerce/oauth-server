@@ -13,7 +13,7 @@ namespace SugarCommerce\OAuthServer\Tests;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SugarCommerce\HttpClient\{Fake, Response};
+use SugarCommerce\HttpClient\{Client as HttpClient, Fake, Response, SsrfPolicy};
 use SugarCommerce\OAuthServer\{Client, ClientDocuments, OAuthError};
 
 /**
@@ -72,6 +72,26 @@ final class ClientDocumentsTest extends TestCase {
 
 		$this->assertInstanceOf( OAuthError::class, ( new ClientDocuments( $http ) )->fetch( 'http://169.254.169.254/latest', 0 ) );
 		$this->assertSame( array(), $http->sent() );
+	}
+
+	/**
+	 * The URL is a stranger's choice: an unguarded client is given the
+	 * default SSRF policy back rather than trusted to be guarded.
+	 */
+	public function test_an_unguarded_http_client_is_guarded_again(): void {
+		$unguarded = new HttpClient( ssrf: null );
+		$http      = ( new \ReflectionProperty( ClientDocuments::class, 'http' ) )->getValue( new ClientDocuments( $unguarded ) );
+
+		$this->assertInstanceOf( HttpClient::class, $http );
+		$this->assertInstanceOf( SsrfPolicy::class, $http->ssrf );
+		$this->assertFalse( $http->ssrf->allow_private );
+		$this->assertSame( 0, $http->max_redirects );
+
+		$custom = SsrfPolicy::permissive();
+		$kept   = ( new \ReflectionProperty( ClientDocuments::class, 'http' ) )->getValue( new ClientDocuments( new HttpClient( ssrf: $custom ) ) );
+
+		$this->assertInstanceOf( HttpClient::class, $kept );
+		$this->assertSame( $custom, $kept->ssrf );
 	}
 
 	public function test_the_cache_lifetime_is_clamped(): void {

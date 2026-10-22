@@ -30,6 +30,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class Settings {
 
 	/**
+	 * Validate and hold the configuration.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param string                  $issuer        The issuer identifier: an
@@ -120,10 +122,10 @@ final readonly class Settings {
 	 * @return string[] In the order the settings list them.
 	 */
 	public function expand( string|array $scope ): array {
-		$asked = is_array( $scope ) ? $scope : preg_split( '/ +/', trim( $scope ), -1, PREG_SPLIT_NO_EMPTY );
+		$asked = is_array( $scope ) ? $scope : ( preg_split( '/ +/', trim( $scope ), -1, PREG_SPLIT_NO_EMPTY ) ?: array() );
 		$held  = array();
 
-		foreach ( (array) $asked as $name ) {
+		foreach ( $asked as $name ) {
 			if ( isset( $this->scopes[ $name ] ) ) {
 				$held[] = $name;
 				$held   = array_merge( $held, $this->scopes[ $name ] );

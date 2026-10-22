@@ -76,7 +76,9 @@ final readonly class ClientMetadata {
 	 *
 	 * @since 1.0.0
 	 *
-	 * @param array<string, mixed> $document   The decoded document.
+	 * @param array<mixed>         $document   The decoded document: a JSON
+	 *                                         object, so its keys are whatever
+	 *                                         the document's author wrote.
 	 * @param string               $url        Where it was fetched from.
 	 * @param int                  $expires_at When the copy goes stale.
 	 *
@@ -105,7 +107,7 @@ final readonly class ClientMetadata {
 	/**
 	 * The shared rules.
 	 *
-	 * @param array<string, mixed> $data       Metadata.
+	 * @param array<mixed>         $data       Metadata.
 	 * @param string               $id         client_id.
 	 * @param bool                 $document   From a metadata document.
 	 * @param int|null             $expires_at For a document.
@@ -124,12 +126,20 @@ final readonly class ClientMetadata {
 			return new OAuthError( $code, 'At most ' . self::MAX_REDIRECTS . ' redirect URIs.' );
 		}
 
+		$valid = array();
+
 		foreach ( $uris as $uri ) {
-			$problem = is_string( $uri ) ? Uri::redirect_problem( $uri ) : 'Each redirect URI is a string.';
+			if ( ! is_string( $uri ) ) {
+				return new OAuthError( $code, 'Each redirect URI is a string.' );
+			}
+
+			$problem = Uri::redirect_problem( $uri );
 
 			if ( null !== $problem ) {
 				return new OAuthError( $code, $problem );
 			}
+
+			$valid[] = $uri;
 		}
 
 		$grants = self::listed( $data['grant_types'] ?? null, array( 'authorization_code' ) );
@@ -150,7 +160,7 @@ final readonly class ClientMetadata {
 		return new Client(
 			id: $id,
 			name: self::name( $data['client_name'] ?? null ),
-			redirect_uris: array_values( array_unique( $uris ) ),
+			redirect_uris: array_values( array_unique( $valid ) ),
 			grant_types: $grants,
 			document: $document,
 			uri: $client_uri,
@@ -161,10 +171,10 @@ final readonly class ClientMetadata {
 	/**
 	 * A list of strings, or the default when the field is absent.
 	 *
-	 * @param mixed    $value   The field.
-	 * @param string[] $default When absent.
+	 * @param mixed        $value   The field.
+	 * @param list<string> $default When absent.
 	 *
-	 * @return string[]
+	 * @return list<string>
 	 */
 	private static function listed( mixed $value, array $default ): array {
 		if ( null === $value ) {

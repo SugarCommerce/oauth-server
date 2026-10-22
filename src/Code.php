@@ -25,6 +25,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class Code {
 
 	/**
+	 * Describe a stored code.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param string                $client_id    Who it was issued to.

@@ -69,6 +69,9 @@ final class UriTest extends TestCase {
 			'relative'           => array( '/cb', false ),
 			'space'              => array( 'https://app.example.com/c b', false ),
 			'localhost lookalike' => array( 'http://localhost.evil.example/cb', false ),
+			// PHP reads the host as `evil.example\good.example`; a browser goes to evil.example.
+			'backslash'          => array( 'https://evil.example\\good.example/cb', false ),
+			'backslash in path'  => array( 'https://app.example.com/cb\\..\\x', false ),
 		);
 	}
 

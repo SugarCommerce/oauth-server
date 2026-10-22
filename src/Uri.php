@@ -246,12 +246,16 @@ final readonly class Uri {
 	/**
 	 * An absolute http(s) URL, parsed, scheme and host lowercased.
 	 *
+	 * A backslash is refused outright: PHP's parser keeps it in the host or
+	 * path, where a browser reads it as `/`, so `https://evil.example\good
+	 * .example/` would be shown as one host and followed to another.
+	 *
 	 * @param string $uri Candidate.
 	 *
 	 * @return array{scheme: string, host: string, port?: int, path?: string, query?: string, fragment?: string, user?: string, pass?: string}|null
 	 */
 	private static function parts( string $uri ): ?array {
-		if ( '' === $uri || 1 === preg_match( '/[\x00-\x20\x7f]/', $uri ) ) {
+		if ( '' === $uri || 1 === preg_match( '/[\x00-\x20\x7f\\\\]/', $uri ) ) {
 			return null;
 		}
 
@@ -270,7 +274,7 @@ final readonly class Uri {
 	/**
 	 * `:port`, or nothing for the scheme's default.
 	 *
-	 * @param array $parts From parts().
+	 * @param array{scheme: string, host: string, port?: int, path?: string, query?: string, fragment?: string, user?: string, pass?: string} $parts From parts().
 	 *
 	 * @return string
 	 */
@@ -281,7 +285,7 @@ final readonly class Uri {
 
 		$default = 'https' === $parts['scheme'] ? 443 : 80;
 
-		return $default === (int) $parts['port'] ? '' : ':' . (int) $parts['port'];
+		return $default === $parts['port'] ? '' : ':' . $parts['port'];
 	}
 
 	/**

@@ -24,6 +24,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class Grant {
 
 	/**
+	 * Describe a grant.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param string                $id        Grant id.

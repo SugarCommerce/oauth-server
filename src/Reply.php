@@ -26,6 +26,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class Reply {
 
 	/**
+	 * Build a reply.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param int                   $status  HTTP status.
@@ -56,11 +58,14 @@ final readonly class Reply {
 	/**
 	 * The body as JSON. An empty body is `{}`, not `[]`.
 	 *
+	 * Invalid UTF-8 is replaced rather than failing the whole encode, so a
+	 * reply is never an empty string.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @return string
 	 */
 	public function json(): string {
-		return (string) json_encode( array() === $this->body ? new \stdClass() : $this->body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		return (string) json_encode( array() === $this->body ? new \stdClass() : $this->body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE );
 	}
 }

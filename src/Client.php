@@ -33,6 +33,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class Client {
 
 	/**
+	 * Describe a client.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param string   $id            client_id.

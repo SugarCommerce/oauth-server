@@ -26,10 +26,19 @@ namespace SugarCommerce\OAuthServer;
  */
 final readonly class StoredToken {
 
-	public const string ACCESS  = 'access';
+	/**
+	 * The kind of a bearer token, presented to the resource.
+	 */
+	public const string ACCESS = 'access';
+
+	/**
+	 * The kind of a token exchanged at the token endpoint for new ones.
+	 */
 	public const string REFRESH = 'refresh';
 
 	/**
+	 * Describe a stored token.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param string   $grant_id   The grant it belongs to.

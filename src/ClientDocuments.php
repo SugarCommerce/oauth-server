@@ -13,6 +13,7 @@ declare( strict_types=1 );
 namespace SugarCommerce\OAuthServer;
 
 use SugarCommerce\HttpClient\Client as HttpClient;
+use SugarCommerce\HttpClient\SsrfPolicy;
 
 /**
  * Class ClientDocuments
@@ -50,9 +51,13 @@ final readonly class ClientDocuments {
 	public const int MAX_BYTES = 5120;
 
 	/**
-	 * Shortest and longest a copy is kept, in seconds.
+	 * Shortest a copy is kept, in seconds.
 	 */
 	public const int MIN_CACHE = 300;
+
+	/**
+	 * Longest a copy is kept, in seconds.
+	 */
 	public const int MAX_CACHE = 86400;
 
 	/**
@@ -66,12 +71,25 @@ final readonly class ClientDocuments {
 	private HttpClient $http;
 
 	/**
+	 * Configure the client documents are fetched with.
+	 *
+	 * A client handed in with its SSRF guard removed gets the default
+	 * policy back: the URL fetched is one a stranger typed, and an
+	 * unguarded fetch of it is a request to the metadata service or the
+	 * admin panel on our own network. A client with a policy of its own
+	 * keeps it.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param HttpClient $http An SSRF-guarded client. Its timeout, size limit
-	 *                         and redirect setting are overridden here.
+	 *                         and redirect setting are overridden here, and
+	 *                         its SSRF policy is restored when absent.
 	 */
 	public function __construct( HttpClient $http = new HttpClient() ) {
+		if ( null === $http->ssrf ) {
+			$http = $http->with_ssrf_policy( new SsrfPolicy() );
+		}
+
 		$this->http = $http->with_timeout( 5 )->with_max_bytes( self::MAX_BYTES )->following_redirects( 0 );
 	}
 

@@ -25,6 +25,8 @@ namespace SugarCommerce\OAuthServer;
 final readonly class AuthorizationRequest {
 
 	/**
+	 * Hold a request that passed every check.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param Client   $client       The client, validated.
