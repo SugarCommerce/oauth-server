@@ -36,6 +36,23 @@ final class MemoryStore implements Store {
 	/** @var array<string, string> Grant id => why it was revoked. */
 	public array $revoked = array();
 
+	/** @var array<string, true> Digests of codes presented again after being spent. */
+	public array $replayed = array();
+
+	/**
+	 * Runs as create_grant() starts: a test puts a racing request here.
+	 *
+	 * @var \Closure(): void
+	 */
+	public \Closure $before_grant;
+
+	/**
+	 * A store with nothing in it.
+	 */
+	public function __construct() {
+		$this->before_grant = static function (): void {};
+	}
+
 	/**
 	 * Find a client.
 	 *
@@ -88,6 +105,10 @@ final class MemoryStore implements Store {
 
 		$this->codes[ $hash ] = self::with( $code, array( 'spent' => true ) );
 
+		if ( $code->spent ) {
+			$this->replayed[ $hash ] = true;
+		}
+
 		return $code;
 	}
 
@@ -99,9 +120,15 @@ final class MemoryStore implements Store {
 	 * @param Client $client    Client.
 	 * @param int    $now       Time.
 	 *
-	 * @return string
+	 * @return string|null Null when the code was replayed first.
 	 */
-	public function create_grant( string $code_hash, Code $code, Client $client, int $now ): string {
+	public function create_grant( string $code_hash, Code $code, Client $client, int $now ): ?string {
+		( $this->before_grant )();
+
+		if ( isset( $this->replayed[ $code_hash ] ) ) {
+			return null;
+		}
+
 		$id = 'g' . ( count( $this->grants ) + 1 );
 
 		$this->grants[ $id ]      = new Grant( $id, $code->client_id, $code->scopes, $code->resource, $code->subject, $code->context, true, $client->name );

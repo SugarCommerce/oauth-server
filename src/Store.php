@@ -24,6 +24,11 @@ namespace SugarCommerce\OAuthServer;
  * spend_refresh(). In SQL that is one conditional UPDATE whose affected-row
  * count is the answer, never a read followed by a write.
  *
+ * And a code's replay must reach the grant it became even when the replay
+ * arrives first: spend_code() marks a spent code as replayed, and
+ * create_grant() refuses to record a grant against a code so marked. Each
+ * is one atomic step, so whichever lands second sees the other.
+ *
  * Every token and code arrives as its digest; the store never sees one.
  *
  * @since 1.0.0
@@ -69,30 +74,44 @@ interface Store {
 	/**
 	 * Mark a code exchanged, atomically, and return it.
 	 *
+	 * A code that was already spent is a replay. In the same atomic step
+	 * the store marks it replayed and reads the grant it became, so the
+	 * exchange still under way — spent, its grant not yet recorded — finds
+	 * the mark when it comes to create_grant(), and makes nothing.
+	 *
 	 * @since 1.0.0
+	 * @since 1.1.0 Marks a replayed code, for create_grant().
 	 *
 	 * @param string $hash Digest of the code.
 	 * @param int    $now  Unix time.
 	 *
 	 * @return Code|null Null when no such code. `spent` is true when it had
 	 *                   already been exchanged — a replay — with the
-	 *                   `grant_id` it became.
+	 *                   `grant_id` it became, or null when none is
+	 *                   recorded yet.
 	 */
 	public function spend_code( string $hash, int $now ): ?Code;
 
 	/**
-	 * Make the grant a code is exchanged for, and remember which it was.
+	 * Make the grant a code is exchanged for, and remember which it was —
+	 * unless the code was presented again since it was spent.
+	 *
+	 * Atomic: the grant is made and recorded against the code only if
+	 * spend_code() has not marked the code replayed; otherwise nothing is
+	 * made. In SQL, the grant's INSERT and a conditional UPDATE of the code
+	 * in one transaction, rolled back when the UPDATE changes nothing.
 	 *
 	 * @since 1.0.0
+	 * @since 1.1.0 Returns null for a code replayed before its grant existed.
 	 *
 	 * @param string $code_hash Digest of the code.
 	 * @param Code   $code      The code.
 	 * @param Client $client    Its client, for the name to show.
 	 * @param int    $now       Unix time.
 	 *
-	 * @return string Grant id.
+	 * @return string|null Grant id, or null when the code was replayed.
 	 */
-	public function create_grant( string $code_hash, Code $code, Client $client, int $now ): string;
+	public function create_grant( string $code_hash, Code $code, Client $client, int $now ): ?string;
 
 	/**
 	 * A grant by id, or null.

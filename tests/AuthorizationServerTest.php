@@ -391,6 +391,30 @@ final class AuthorizationServerTest extends TestCase {
 		$this->assertSame( 'code_reused', $this->store->revoked['g1'] );
 	}
 
+	/**
+	 * The replay that lands while the first exchange is between spending
+	 * the code and recording its grant: it finds no grant to revoke, so the
+	 * first exchange must not make one.
+	 */
+	public function test_a_code_replayed_before_its_grant_exists_gives_nothing(): void {
+		$code   = $this->code();
+		$replay = null;
+
+		$this->store->before_grant = function () use ( $code, &$replay ): void {
+			$this->store->before_grant = static function (): void {};
+			$replay                    = $this->exchange( $code );
+		};
+
+		$first = $this->exchange( $code );
+
+		$this->assertInstanceOf( Reply::class, $replay );
+		$this->assertSame( 'invalid_grant', $replay->body['error'] );
+		$this->assertSame( 'invalid_grant', $first->body['error'] ?? null, 'The exchange that lost the race issues no tokens.' );
+		$this->assertArrayNotHasKey( 'access_token', $first->body );
+		$this->assertSame( array(), $this->store->grants, 'No grant outlives the replay.' );
+		$this->assertSame( array(), $this->store->tokens );
+	}
+
 	public function test_unknown_grant_types_are_refused(): void {
 		$this->assertSame( 'unsupported_grant_type', $this->server->token( array( 'grant_type' => 'client_credentials', 'client_id' => 'mcpc_test' ) )->body['error'] );
 		$this->assertSame( 'unsupported_grant_type', $this->server->token( array( 'grant_type' => 'password', 'client_id' => 'mcpc_test' ) )->body['error'] );

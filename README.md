@@ -115,7 +115,7 @@ $who = $server->authenticate( $bearer );   // null, or [ 'grant' => Grant, 'scop
 
 ### Storage
 
-Implement `Store`. Two methods must be atomic — `spend_code()` and `spend_refresh()` — because each is what stops a stolen credential being used twice by two racing requests: one conditional `UPDATE … WHERE spent_at IS NULL`, and the affected-row count is the answer. `revoke_grant()` must end every token of the grant. `tests/MemoryStore.php` is the contract in arrays.
+Implement `Store`. Two methods must be atomic — `spend_code()` and `spend_refresh()` — because each is what stops a stolen credential being used twice by two racing requests: one conditional `UPDATE … WHERE spent_at IS NULL`, and the affected-row count is the answer. A code presented again must reach the grant it became even when the replay lands before that grant is recorded: `spend_code()` marks a spent code as replayed, and `create_grant()` makes the grant and records it against the code in one transaction only if the code is not so marked — returning `null`, and making nothing, when it is. `revoke_grant()` must end every token of the grant. `tests/MemoryStore.php` is the contract in arrays.
 
 ## What it does not do
 

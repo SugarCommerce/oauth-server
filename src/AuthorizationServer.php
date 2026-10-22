@@ -330,7 +330,13 @@ final readonly class AuthorizationServer {
 			return self::invalid_grant( 'That client no longer exists.' );
 		}
 
+		// Null when the code was presented again while this exchange was
+		// under way: the replay found no grant to revoke, so none is made.
 		$grant = $this->store->create_grant( $hash, $code, $client, $now );
+
+		if ( null === $grant ) {
+			return self::invalid_grant( 'That code has already been used; the access it gave has been revoked.' );
+		}
 
 		return $this->issue( $grant, $code->scopes, $client->refreshes(), $now );
 	}
